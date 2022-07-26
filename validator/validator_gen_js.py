@@ -47,7 +47,7 @@ def UnderscoreToCamelCase(under_score):
     A name, segmented as camelCase.
   """
   segments = under_score.split('_')
-  return '%s%s' % (segments[0], ''.join([s.title() for s in segments[1:]]))
+  return f"{segments[0]}{''.join([s.title() for s in segments[1:]])}"
 
 
 def FindDescriptors(validator_pb2, msg_desc_by_name, enum_desc_by_name):
@@ -85,7 +85,7 @@ class OutputFormatter(object):
 
   def Line(self, line):
     """Adds a line to self.lines, applying the indent."""
-    self.lines.append('%s%s' % (' ' * self.indent_by_[-1], line))
+    self.lines.append(f"{' ' * self.indent_by_[-1]}{line}")
 
 
 class MessageKey(object):
@@ -300,12 +300,8 @@ def FieldTypeFor(descriptor, field_desc, nullable):
   """
   element_type = ElementTypeFor(descriptor, field_desc)
   if field_desc.label == descriptor.FieldDescriptor.LABEL_REPEATED:
-    if nullable:
-      return 'Array<!%s>' % element_type
-    return '!Array<!%s>' % element_type
-  if nullable:
-    return '?%s' % element_type
-  return '%s' % element_type
+    return f'Array<!{element_type}>' if nullable else f'!Array<!{element_type}>'
+  return f'?{element_type}' if nullable else f'{element_type}'
 
 
 def ValueToString(descriptor, field_desc, value):
@@ -320,18 +316,14 @@ def ValueToString(descriptor, field_desc, value):
     A Javascript literal for the provided non-repeated value.
   """
   if field_desc.type == descriptor.FieldDescriptor.TYPE_STRING:
-    escaped = ('' + value).encode('unicode-escape')
+    escaped = f'{value}'.encode('unicode-escape')
     return "'%s'" % escaped.replace("'", "\\'")
   if field_desc.type == descriptor.FieldDescriptor.TYPE_BOOL:
-    if value:
-      return 'true'
-    return 'false'
+    return 'true' if value else 'false'
   if field_desc.type == descriptor.FieldDescriptor.TYPE_ENUM:
     enum_value_name = field_desc.enum_type.values_by_number[value].name
-    return '%s.%s' % (field_desc.enum_type.full_name, enum_value_name)
-  if value is None:
-    return 'null'
-  return str(value)
+    return f'{field_desc.enum_type.full_name}.{enum_value_name}'
+  return 'null' if value is None else str(value)
 
 
 # For the validator-light version, skip these fields.This works by
@@ -468,7 +460,7 @@ def PrintClassFor(descriptor, msg_desc, light, out):
         an OutputFormatter instance, to which this function will append.
   """
   with GenerateNonLightSectionIf(msg_desc.full_name
-                                 in SKIP_CLASSES_FOR_LIGHT, out):
+                                   in SKIP_CLASSES_FOR_LIGHT, out):
     constructor_arg_fields = []
     constructor_arg_field_names = {}
     for field in msg_desc.fields:
@@ -519,8 +511,7 @@ def PrintClassFor(descriptor, msg_desc, light, out):
           descriptor, field, nullable=assigned_value == 'null')
       with GenerateNonLightSectionIf(field.name in SKIP_FIELDS_FOR_LIGHT, out):
         out.Line('/**%s @type {%s} */' % (export_or_empty, type_name))
-        out.Line('this.%s = %s;' % (UnderscoreToCamelCase(field.name),
-                                    assigned_value))
+        out.Line(f'this.{UnderscoreToCamelCase(field.name)} = {assigned_value};')
     if msg_desc.full_name == 'amp.validator.CdataSpec':
       out.Line('/** @type {?number} */')
       out.Line('this.combinedBlacklistedCdataRegex = null;')
@@ -561,7 +552,7 @@ def PrintEnumFor(enum_desc, light, out):
         an OutputFormatter instance, to which this function will append.
   """
   with GenerateNonLightSectionIf(enum_desc.full_name
-                                 in SKIP_ENUMS_FOR_LIGHT, out):
+                                   in SKIP_ENUMS_FOR_LIGHT, out):
     out.Line('/**')
     if light:
       out.Line(' * @enum {number}')
@@ -573,7 +564,7 @@ def PrintEnumFor(enum_desc, light, out):
     out.PushIndent(2)
     names = []
     for v in enum_desc.values:
-      names.append('%s' % v.name)
+      names.append(f'{v.name}')
       if light:
         out.Line('%s: %d,' % (v.name, v.number))
       else:
@@ -584,9 +575,10 @@ def PrintEnumFor(enum_desc, light, out):
     out.Line('%s_NamesByIndex = ["%s"];' % (enum_desc.full_name,
                                             '","'.join(names)))
     out.Line('/** @type {!Array<!%s>} */' % enum_desc.full_name)
-    out.Line('%s_ValuesByIndex = [%s];' % (
-        enum_desc.full_name, ','.join(
-            ['%s.%s' % (enum_desc.full_name, n)for n in names])))
+    out.Line(('%s_ValuesByIndex = [%s];' % (
+        enum_desc.full_name,
+        ','.join([f'{enum_desc.full_name}.{n}' for n in names]),
+    )))
 
 
 def TagSpecName(tag_spec):
@@ -692,7 +684,7 @@ def AssignedValueFor(descriptor, field_desc, field_val, registry, light, out):
   # call the render function once.
   if field_desc.label == descriptor.FieldDescriptor.LABEL_REPEATED:
     elements = [render_value(v) for v in field_val]
-    return '[%s]' % ','.join(elements)
+    return f"[{','.join(elements)}]"
   return render_value(field_val)
 
 
@@ -740,9 +732,9 @@ def PrintObject(descriptor, msg, registry, light, out):
   ]
 
   this_message_reference = registry.MessageReferenceForKey(this_message_key)
-  out.Line('var %s = new %s(%s);' %
-           (this_message_reference, msg.DESCRIPTOR.full_name,
-            ','.join(constructor_arg_values)))
+  out.Line(
+      f"var {this_message_reference} = new {msg.DESCRIPTOR.full_name}({','.join(constructor_arg_values)});"
+  )
 
   # Then we emit the remaining field values as assignments.
   for (field, value) in field_and_assigned_values:
@@ -750,8 +742,9 @@ def PrintObject(descriptor, msg, registry, light, out):
       continue
     if field.full_name in CONSTRUCTOR_ARG_FIELDS:
       continue
-    out.Line('%s.%s = %s;' % (this_message_reference,
-                              UnderscoreToCamelCase(field.name), value))
+    out.Line(
+        f'{this_message_reference}.{UnderscoreToCamelCase(field.name)} = {value};'
+    )
   if (msg.DESCRIPTOR.full_name == 'amp.validator.CdataSpec' and
       msg.blacklisted_cdata_regex):
     combined_blacklisted_cdata_regex = '(%s)' % '|'.join([
@@ -778,7 +771,7 @@ def DispatchKeyForTagSpecOrNone(tag_spec):
       attr_value = attr.value_casei or attr.value.lower()
       assert attr_value is not None
       if attr.dispatch_key == attr.NAME_DISPATCH:
-        return '%s' % attr_name
+        return f'{attr_name}'
       if attr.dispatch_key == attr.NAME_VALUE_DISPATCH:
         return '%s\\0%s' % (attr_name, attr_value)
       if attr.dispatch_key == attr.NAME_VALUE_PARENT_DISPATCH:
@@ -822,13 +815,13 @@ def GenerateValidatorGeneratedJs(specfile, validator_pb2, text_format, light,
   enum_desc_by_name = {}
   FindDescriptors(validator_pb2, msg_desc_by_name, enum_desc_by_name)
 
-  rules_obj = '%s.RULES' % validator_pb2.DESCRIPTOR.package
+  rules_obj = f'{validator_pb2.DESCRIPTOR.package}.RULES'
   all_names = [rules_obj] + msg_desc_by_name.keys() + enum_desc_by_name.keys()
   all_names.sort()
 
   out = OutputFormatter(out)
   out.Line('//')
-  out.Line('// Generated by %s - do not edit.' % os.path.basename(__file__))
+  out.Line(f'// Generated by {os.path.basename(__file__)} - do not edit.')
   out.Line('//')
   out.Line('')
   for name in all_names:
@@ -847,7 +840,7 @@ def GenerateValidatorGeneratedJs(specfile, validator_pb2, text_format, light,
 
   for name in all_type_names:
     out.Line('/** @type {!Array<!%s>} */' % name)
-    out.Line('var EMPTY_%s_ARRAY = [];' % name.replace('.', '_'))
+    out.Line(f"var EMPTY_{name.replace('.', '_')}_ARRAY = [];")
     out.Line('')
 
   for name in all_names:
@@ -896,8 +889,7 @@ def GenerateValidatorGeneratedJs(specfile, validator_pb2, text_format, light,
   # a dispatch key.
   for tag_spec in rules.tags:
     tag_spec_id = registry.MessageIdForTagSpecName(TagSpecName(tag_spec))
-    dispatch_key = DispatchKeyForTagSpecOrNone(tag_spec)
-    if dispatch_key:
+    if dispatch_key := DispatchKeyForTagSpecOrNone(tag_spec):
       out.Line('%s.dispatchKeyByTagSpecId[%d]="%s";' %
                (rules_reference, tag_spec_id, dispatch_key))
 
@@ -936,27 +928,26 @@ def GenerateValidatorGeneratedJs(specfile, validator_pb2, text_format, light,
         attr_id_list.append(registry.InternString(attr.name))
       else:
         attr_id_list.append(registry.MessageIdForKey(MessageKey(attr)))
-    if attr_list.name == '$GLOBAL_ATTRS':
-      global_attrs = attr_id_list
-      direct_attr_lists.append([])
-    elif attr_list.name == '$AMP_LAYOUT_ATTRS':
+    if attr_list.name == '$AMP_LAYOUT_ATTRS':
       amp_layout_attrs = attr_id_list
+      direct_attr_lists.append([])
+    elif attr_list.name == '$GLOBAL_ATTRS':
+      global_attrs = attr_id_list
       direct_attr_lists.append([])
     else:
       direct_attr_lists.append(attr_id_list)
 
-  out.Line('%s.directAttrLists = %s;' % (
-      rules_reference, json.dumps(direct_attr_lists)))
-  out.Line('%s.globalAttrs = %s;' % (
-      rules_reference, json.dumps(global_attrs)))
-  out.Line('%s.ampLayoutAttrs = %s;' % (
-      rules_reference, json.dumps(amp_layout_attrs)))
+  out.Line(
+      f'{rules_reference}.directAttrLists = {json.dumps(direct_attr_lists)};')
+  out.Line(f'{rules_reference}.globalAttrs = {json.dumps(global_attrs)};')
+  out.Line(f'{rules_reference}.ampLayoutAttrs = {json.dumps(amp_layout_attrs)};')
 
   # We emit these after the last call to registry.InternString.
-  out.Line('%s.internedStrings = %s;' %
-           (rules_reference, json.dumps(registry.InternedStrings())))
+  out.Line(
+      f'{rules_reference}.internedStrings = {json.dumps(registry.InternedStrings())};'
+  )
 
-  out.Line('return %s;' % rules_reference)
+  out.Line(f'return {rules_reference};')
   out.PopIndent()
   out.Line('}')
   out.Line('')
