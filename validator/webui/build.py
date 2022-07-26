@@ -62,7 +62,7 @@ def CheckPrereqs():
   """Checks that various prerequisites for this script are satisfied."""
   logging.info('entering ...')
 
-  if platform.system() != 'Linux' and platform.system() != 'Darwin':
+  if platform.system() not in ['Linux', 'Darwin']:
     Die('Sorry, this script assumes Linux or Mac OS X thus far. '
         'Please feel free to edit the source and fix it to your needs.')
 
@@ -70,7 +70,7 @@ def CheckPrereqs():
   for f in ['webui.js', 'index.html',
             'logo-blue.svg', 'package.json']:
     if not os.path.exists(f):
-      Die('%s not found. Must run in amp_validator source directory.' % f)
+      Die(f'{f} not found. Must run in amp_validator source directory.')
 
   # Ensure that npm is installed.
   try:
@@ -80,8 +80,8 @@ def CheckPrereqs():
 
   # Ensure npm version '1.3.10' or newer.
   m = re.search('^(\\d+)\\.(\\d+)\\.(\\d+)$', npm_version)
-  if (int(m.group(1)), int(m.group(2)), int(m.group(3))) < (1, 3, 10):
-    Die('Expected npm version 1.3.10 or newer, saw: %s' % npm_version)
+  if (int(m[1]), int(m[2]), int(m[3])) < (1, 3, 10):
+    Die(f'Expected npm version 1.3.10 or newer, saw: {npm_version}')
 
   logging.info('... done')
 
@@ -94,7 +94,7 @@ def SetupOutDir(out_dir):
       dots, etc.
   """
   logging.info('entering ...')
-  assert re.match(r'^[a-zA-Z_\-0-9]+$', out_dir), 'bad out_dir: %s' % out_dir
+  assert re.match(r'^[a-zA-Z_\-0-9]+$', out_dir), f'bad out_dir: {out_dir}'
 
   if os.path.exists(out_dir):
     subprocess.check_call(['rm', '-rf', out_dir])
@@ -150,9 +150,8 @@ def CreateWebuiAppengineDist(out_dir):
     shutil.rmtree(tempdir)
   webui_out = os.path.join(out_dir, 'webui_appengine')
   shutil.copytree('.', webui_out, ignore=shutil.ignore_patterns('dist'))
-  f = open(os.path.join(webui_out, 'index.html'), 'w')
-  f.write(vulcanized_index_html)
-  f.close()
+  with open(os.path.join(webui_out, 'index.html'), 'w') as f:
+    f.write(vulcanized_index_html)
   logging.info('... success')
 
 
